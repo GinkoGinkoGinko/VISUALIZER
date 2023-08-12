@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Music Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: black;
+    }
+    canvas {
+      border: 1px solid white;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="visualizer" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById("visualizer");
+    const ctx = canvas.getContext("2d");
+
+    let audioContext;
+    let analyser;
+
+    const dropArea = document.body;
+
+    dropArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropArea.classList.add("highlight");
+    });
+
+    dropArea.addEventListener("dragleave", () => {
+      dropArea.classList.remove("highlight");
+    });
+
+    dropArea.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropArea.classList.remove("highlight");
+
+      const file = e.dataTransfer.files[0];
+      const audio = new Audio();
+      audio.src = URL.createObjectURL(file);
+
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      const sourceNode = audioContext.createMediaElementSource(audio);
+
+      sourceNode.connect(analyser);
+      analyser.connect(audioContext.destination);
+
+      // Make sure the audio is loaded before playing
+      await audio.play();
+
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function visualize() {
+        analyser.getByteFrequencyData(dataArray);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const kicksThreshold = 200; // Adjust this threshold for kicks
+        const snareThreshold = 150; // Adjust this threshold for snares
+
+        const gridSize = 20; // Adjust this value to control grid density
+        const spacing = 2; // Adjust this value to control spacing between pixels
+
+        const gridCellWidth = (canvas.width - spacing * (gridSize - 1)) / gridSize;
+        const gridCellHeight = (canvas.height - spacing * (gridSize - 1)) / gridSize;
+
+        for (let x = 0; x < gridSize; x++) {
+          for (let y = 0; y < gridSize; y++) {
+            const pixelX = x * (gridCellWidth + spacing);
+            const pixelY = y * (gridCellHeight + spacing);
+
+            // Calculate index for dataArray based on grid position
+            const dataIndex = Math.floor((x / gridSize) * bufferLength);
+
+            if (dataArray[dataIndex] > kicksThreshold || dataArray[dataIndex] > snareThreshold) {
+              const pixelSize = (dataArray[dataIndex] / 15); // Adjust this value for spacing
+
+              const colorValue = Math.floor(Math.random() * 256);
+              ctx.fillStyle = `rgb(${colorValue}, ${colorValue}, ${colorValue})`;
+
+              // Randomly select 1% of pixels to be colored in lemon yellow
+              if (Math.random() < 0.01) {
+                ctx.fillStyle = 'rgb(255, 255, 0)'; // Lemon yellow
+              }
+
+              ctx.fillRect(pixelX, pixelY, pixelSize, pixelSize);
+            }
+          }
+        }
+
+        requestAnimationFrame(visualize);
+      }
+
+      visualize();
+    });
+  </script>
+</body>
+</html>
